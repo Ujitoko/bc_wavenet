@@ -29,10 +29,10 @@ class Model(object):
         self.model_name = model_name
         self.batch_size = batch_size
 
-        self.iter_save_fig = 50000
-        self.iter_save_param = 100000
-        self.iter_calc_loss = 25000
-        self.iter_end_training = 5000000
+        self.iter_save_fig = 5000
+        self.iter_save_param = 10000
+        self.iter_calc_loss = 2500
+        self.iter_end_training = 500000
         
         inputs = tf.placeholder(tf.float32,
                                 shape=(None, num_time_samples, num_channels))
@@ -224,8 +224,9 @@ class Model(object):
                 #waves = {"test":self.test_targets[0] , "generated":test_generated[0,:]}
                 show_bc_transition(test_generated, dirname=self.model_name, filename="bc_transition_" + str(i))
                 
-                show_wave(losses, dirname=self.model_name, filename="losses_" + str(i), y_lim=0)
+                show_wave(losses, dirname=self.model_name, filename="losses_" + str(i), y_lim=6)
                 """
+
                 
             
             if i % self.iter_save_param == 0:
