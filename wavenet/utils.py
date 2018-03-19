@@ -16,8 +16,14 @@ class BitCoinDataset():
         print("init of bitcoin dataset")
 
         self.num_time_steps = num_time_steps
-        self.histohour1 = self.get_json(2000, "&toTs=1521370800")
-        self.histohour2 = self.get_json(2000, "&toTs=1514170800")
+
+        #f = open("dataset/histohour1.json", 'r')
+        #self.histohour1 = json.load(f)
+        #f = open("dataset/histohour2.json", 'r')
+        #self.histohour2 = json.load(f)
+        #self.histohour1 = self.get_json(2000, "&toTs=1521370800")
+        #self.histohour2 = self.get_json(2000, "&toTs=1514170800")
+        self.histohour = np.load("dataset/normalized_histohour.npy")
         
     def len(self):
         print("length")
@@ -34,23 +40,31 @@ class BitCoinDataset():
 
     # batch内の1 dataを作成
     def make_single_batch(self):
+        start = np.random.randint(self.histohour.shape[0] - (self.num_time_steps+1))
+        return self.histohour[start:start + self.num_time_steps+1]
+        """
         rand = np.random.randint(10) % 2
         if rand == 0:
             hours_content = self.histohour1
         else:
             hours_content = self.histohour2
+
         #hours_content = self.get_json(num_time_steps)
         #print(type(hours_content["Data"]))
         #print(len(hours_content["Data"]))
+
         start = np.random.randint(len(hours_content["Data"]) - (self.num_time_steps+1))
+        
         single_batch = []
         for i in range(self.num_time_steps+1):
             data = hours_content["Data"][start + i]
             tmp_data = [data["close"], data["high"], data["low"], data["open"], data["volumefrom"], data["volumeto"]]
             single_batch.append(tmp_data)
             #print(data["time"])
-        return single_batch
 
+        return single_batch
+        """
+        
     # 正規化
     def min_max_normalize(self, x, axis=None):
         min = x.min(axis=axis, keepdims=True)
@@ -65,18 +79,13 @@ class BitCoinDataset():
             multi_batch.append(self.make_single_batch())
         
         # 正規化
-        multi_batch_np = np.array(multi_batch)
-        norm_multi_batch_np = self.min_max_normalize(multi_batch_np, axis=1)*2.0 -1.0
-        #print(norm_multi_batch_np.shape)
-        #print()
-        #print(multi_batch_np)
-        #print()
-        #print(norm_multi_batch_np)
+        norm_multi_batch_np = np.array(multi_batch)
+        #norm_multi_batch_np = self.min_max_normalize(multi_batch_np, axis=1)*2.0 -1.0
 
         batch_input_np = norm_multi_batch_np[:,:-1,:]
         #print(batch_input_np.shape)
-        batch_output_np = norm_multi_batch_np[:,1:,1]
-        batch_output_np = batch_output_np[:,np.newaxis]
+        batch_output_np = norm_multi_batch_np[:,1:,:]
+        #batch_output_np = batch_output_np[:,np.newaxis]
         
         return batch_input_np, batch_output_np
 
@@ -92,9 +101,9 @@ class BitCoinDataset():
             single_batch.append(tmp_data)
         
         single_batch_np = np.array(single_batch)
-        norm_single_batch_np = self.min_max_normalize(single_batch_np, axis=1)*2.0 -1.0
+        #norm_single_batch_np = self.min_max_normalize(single_batch_np, axis=1)*2.0 -1.0
 
-        return single_batch_np, norm_single_batch_np
+        return single_batch_np
     
     """
     def getSequentialItem(self, time_step, batch_size=2):
@@ -307,6 +316,27 @@ def show_test_wav(waves, dirname, filename, y_lim=0):
     
     plt.plot(waves["test"], color='r',linewidth=1.0, label="test", alpha=0.3)
     plt.plot(waves["generated"], color='b', linewidth=1.0, label="generated",alpha=0.3)
+
+    plt.legend()
+    plt.savefig(os.path.join(dirname, filename + '.png'))
+    plt.close()
+
+    
+def show_bc_transition(waves, dirname, filename, y_lim=0):
+    if os.path.isdir(dirname) == False:
+        os.mkdir(dirname)
+    
+    plt.figure(figsize=(30,10))
+    plt.title('wave files', fontsize=30)
+    plt.xlabel('x', fontsize=20)
+    plt.ylabel('y', fontsize=20)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    if y_lim != 0:
+        plt.ylim(0, y_lim)
+    
+    plt.plot(waves[:,1], color='r',linewidth=1.0, label="low", alpha=0.3)
+    plt.plot(waves[:,2], color='b', linewidth=1.0, label="high",alpha=0.3)
 
     plt.legend()
     plt.savefig(os.path.join(dirname, filename + '.png'))

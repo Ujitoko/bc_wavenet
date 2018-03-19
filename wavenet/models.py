@@ -10,8 +10,8 @@ import numpy as np
 class Model(object):
     def __init__(self,
                  num_time_samples=10000,
-                 num_channels=1,
-                 num_classes=256,
+                 num_channels=6,
+                 num_classes=128,
                  num_blocks=2,
                  num_layers=14,
                  num_hidden=128,
@@ -29,14 +29,14 @@ class Model(object):
         self.model_name = model_name
         self.batch_size = batch_size
 
-        self.iter_save_fig = 10000
-        self.iter_save_param = 5000
-        self.iter_calc_loss = 2500
+        self.iter_save_fig = 50000
+        self.iter_save_param = 100000
+        self.iter_calc_loss = 25000
         self.iter_end_training = 5000000
         
         inputs = tf.placeholder(tf.float32,
                                 shape=(None, num_time_samples, num_channels))
-        targets = tf.placeholder(tf.int32, shape=(None, num_time_samples))
+        targets = tf.placeholder(tf.int32, shape=(None, num_time_samples, num_channels))
 
         h = inputs
         hs = []
@@ -47,15 +47,22 @@ class Model(object):
                 h = dilated_conv1d(h, num_hidden, rate=rate, name=name)
                 hs.append(h)
 
+        
         outputs = conv1d(h,
-                         num_classes,
+                         num_classes*num_channels,
                          filter_width=1,
                          gain=1.0,
                          activation=None,
                          bias=True)
 
-        costs = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=outputs, labels=targets)
+        print(outputs.shape)
+        print(targets.shape)
+        costs = 0
+        for i in range(num_channels):
+            #costs += tf.nn.sparse_softmax_cross_entropy_with_logits(
+            #    logits=outputs[i*num_classes:(i+1)*num_classes], labels=targets[:,:,i])
+            costs += tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=outputs[:,:,i*num_classes:(i+1)*num_classes], labels=targets[:,:,i])
         cost = tf.reduce_mean(costs)
 
         train_step = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
@@ -87,12 +94,16 @@ class Model(object):
         
         # dataset
         self.bc_train = BitCoinDataset(self.num_time_samples)
+        self.param_min = np.load("dataset/param_min.npy")
+        self.param_max = np.load("dataset/param_max.npy")
         #self.ad_train = AccelerationDataset("acc_dataset_selected/train", "train10", 0)
         #self.ad_test = AccelerationDataset("acc_dataset_selected/test", "test10", self.num_time_samples)
                 
         self.generate_init()
         self.count = 0
 
+
+        
         """
         #print(self.ad_train.shape)
         #print(self.ad_test.shape)
@@ -128,7 +139,9 @@ class Model(object):
         
     def _train(self):
         batch_x, batch_y = self.bc_train.make_multi_batch(self.batch_size, self.num_time_samples)
-        bins = np.linspace(-1, 1, 256)
+        #print(batch_x.shape)
+        #print(batch_y.shape)
+        bins = np.linspace(-1, 1, 128)
         # Quantize inputs.
 
         inputs_batch, targets_batch = [],[]
@@ -143,8 +156,9 @@ class Model(object):
             targets = (np.digitize(y, bins, right=False) - 1)#[None, :]
             targets_batch.append(targets)
 
+        
         inputs_batch = np.array(inputs_batch)
-        targets_batch = np.vstack(targets_batch)
+        targets_batch = np.array(targets_batch)
 
         feed_dict = {self.inputs_ph: inputs_batch, self.targets_ph: targets_batch}
         cost, _ = self.sess.run(
@@ -197,20 +211,18 @@ class Model(object):
                 #train_generated = self.generate_run(self.train_inputs[0,:,:][np.newaxis,:,:], i)
                 #waves = {"test":self.train_targets[0] , "generated":train_generated[0,:]}
                 #show_test_wav(waves, dirname=self.model_name, filename="train_wave_" + str(i))
-                test_input, norm_test_input = self.bc_train.make_test_batch()
-                #print(norm_test_input.shape)
-                test_generated = self.generate_run(norm_test_input[np.newaxis,:,:])
-                #print(test_generated.shape)
-                print(test_generated[-1])
-                print(norm_test_input[-1][1])
-                ratio = test_generated[-1] - norm_test_input[-1][1]
-                print(ratio)
-                #print("ratio" + str(ratio))
-                #print(ratio*test_input[-1][1])
-                #print(test_input[-1:][
 
+                test_input = self.bc_train.make_test_batch()
+                test_input_norm = 2.0*(test_input - self.param_min)/(self.param_max - self.param_min) -1.0
+                #print(test_input_norm)
+                
+                test_generated_norm = self.generate_run(test_input_norm)
+                test_generated = (test_generated_norm+1.0)*0.5
+                test_generated = test_generated*(self.param_max-self.param_min) + self.param_min
+                print(test_generated.shape)
+                show_bc_transition(test_generated_norm, dirname=self.model_name, filename="norm_bc_transition_" + str(i))
                 #waves = {"test":self.test_targets[0] , "generated":test_generated[0,:]}
-                #show_test_wav(waves, dirname=self.model_name, filename="test_wave_" + str(i))
+                show_bc_transition(test_generated, dirname=self.model_name, filename="bc_transition_" + str(i))
                 
                 show_wave(losses, dirname=self.model_name, filename="losses_" + str(i), y_lim=15)
                 
@@ -270,16 +282,34 @@ class Model(object):
         self.sess.run(self.init_ops)
 
     def generate_run(self, inputs):
+        # (200,6)
         predictions = []
+        inputs_list = inputs.tolist()
         
-        for i in range(inputs.shape[1]):
-            feed_dict = {self.inputs: inputs[:,i,:]}
-            output = self.sess.run(self.out_ops, feed_dict=feed_dict)[0] # ignore push ops
-            value = np.argmax(output[0, :])
-            value_binned = np.array(self.bins[value])[None, None]
-            predictions.append(np.squeeze(value_binned))
+        for i in range(inputs.shape[0]+100):
+            inputs = np.array(inputs_list)
 
-        return np.array(predictions)
+            feed_dict = {self.inputs: inputs[np.newaxis ,0,:]}
+            output = self.sess.run(self.out_ops, feed_dict=feed_dict)[0] # ignore push ops
+            #print(output.shape)
+
+            values = []
+            for i in range(self.num_channels):
+                value = np.argmax(output[0, i*self.num_channels:(i+1)*self.num_channels])
+                value_binned = np.array(self.bins[value])[None, None]
+                values.append(np.squeeze(value_binned))
+
+            values_np = np.array(values)
+            #print(values_np.shape)
+            #print(values_np)
+            inputs_list.pop(0) # remove top
+            inputs_list.append(values_np)
+            
+            #print("{0}: {1}".format(i, value_binned))
+            
+            predictions.append(values_np)
+
+        return np.array(predictions[inputs.shape[0]-1:])
         
         
 """
