@@ -206,8 +206,8 @@ class Model(object):
             """
             
    
-            #if i % self.iter_save_fig == 0:
-                
+            if i % self.iter_save_fig == 0:
+                print("")
                 #train_generated = self.generate_run(self.train_inputs[0,:,:][np.newaxis,:,:], i)
                 #waves = {"test":self.train_targets[0] , "generated":train_generated[0,:]}
                 #show_test_wav(waves, dirname=self.model_name, filename="train_wave_" + str(i))
