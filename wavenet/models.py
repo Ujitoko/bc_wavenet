@@ -206,12 +206,12 @@ class Model(object):
             """
             
    
-            if i % self.iter_save_fig == 0:
+            #if i % self.iter_save_fig == 0:
                 
                 #train_generated = self.generate_run(self.train_inputs[0,:,:][np.newaxis,:,:], i)
                 #waves = {"test":self.train_targets[0] , "generated":train_generated[0,:]}
                 #show_test_wav(waves, dirname=self.model_name, filename="train_wave_" + str(i))
-
+                """
                 test_input = self.bc_train.make_test_batch()
                 test_input_norm = 2.0*(test_input - self.param_min)/(self.param_max - self.param_min) -1.0
                 #print(test_input_norm)
@@ -224,7 +224,8 @@ class Model(object):
                 #waves = {"test":self.test_targets[0] , "generated":test_generated[0,:]}
                 show_bc_transition(test_generated, dirname=self.model_name, filename="bc_transition_" + str(i))
                 
-                show_wave(losses, dirname=self.model_name, filename="losses_" + str(i), y_lim=15)
+                show_wave(losses, dirname=self.model_name, filename="losses_" + str(i), y_lim=0)
+                """
                 
             
             if i % self.iter_save_param == 0:
