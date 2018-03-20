@@ -11,7 +11,7 @@ class Model(object):
     def __init__(self,
                  num_time_samples=10000,
                  num_channels=6,
-                 num_classes=256,
+                 num_classes=512,
                  num_blocks=2,
                  num_layers=14,
                  num_hidden=128,
@@ -141,7 +141,7 @@ class Model(object):
         batch_x, batch_y = self.bc_train.make_multi_batch(self.batch_size, self.num_time_samples)
         #print(batch_x.shape)
         #print(batch_y.shape)
-        bins = np.linspace(-1, 1, 256)
+        bins = np.linspace(-1, 1, self.num_classes)
         # Quantize inputs.
 
         inputs_batch, targets_batch = [],[]
